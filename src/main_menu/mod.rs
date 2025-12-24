@@ -34,6 +34,7 @@ enum MenuButtonAction {
 
 pub(crate) fn plugin(app: &mut App) {
     app.add_sub_state::<MenuState>()
+        .add_systems(OnEnter(GameState::Menu), main_menu_pre_setup)
         .add_systems(OnEnter(MenuState::Main), main_menu_setup)
         .add_systems(
             Update,
@@ -104,6 +105,10 @@ fn button_system(
 
 fn cleanup_main_menu_screen(mut _commands: Commands, mut clear_color: ResMut<ClearColor>) {
     clear_color.0 = ClearColor::default().0;
+}
+
+fn main_menu_pre_setup(mut commands: Commands) {
+    commands.spawn((DespawnOnExit(GameState::Menu), Camera2d));
 }
 
 fn main_menu_setup(

@@ -1,6 +1,7 @@
 mod game;
 mod main_menu;
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -17,7 +18,7 @@ pub struct GameAppPlugin;
 
 impl Plugin for GameAppPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DefaultPlugins)
+        app.add_plugins((DefaultPlugins, PhysicsPlugins::default()))
             .init_state::<GameState>()
             .add_systems(OnEnter(GameState::Menu), setup)
             .add_plugins((main_menu::plugin, game::plugin));
@@ -26,10 +27,6 @@ impl Plugin for GameAppPlugin {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/Montserrat-Thin.ttf");
-
-    commands.spawn(Camera3d::default());
-
-    commands.insert_resource(ClearColor(Color::BLACK));
 
     commands.insert_resource(MainFont(font));
 }
