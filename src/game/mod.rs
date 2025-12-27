@@ -30,6 +30,15 @@ enum CubeFace {
     NegZ,
 }
 
+struct CubeFaceColors {
+    pos_x: Option<Color>,
+    neg_x: Option<Color>,
+    pos_y: Option<Color>,
+    neg_y: Option<Color>,
+    pos_z: Option<Color>,
+    neg_z: Option<Color>,
+}
+
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 struct PendingDrag {
@@ -539,7 +548,7 @@ fn cubie_rotation_system(
     }
 }
 
-fn colored_cube_mesh(per_face_colors: [[f32; 4]; 6]) -> Mesh {
+fn colored_cube_mesh(colors: CubeFaceColors) -> Mesh {
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
@@ -578,10 +587,27 @@ fn colored_cube_mesh(per_face_colors: [[f32; 4]; 6]) -> Mesh {
         [-0.5, -0.5, 0.5],
     ];
 
-    let colors = per_face_colors
-        .iter()
-        .flat_map(|color| vec![*color; 4])
-        .collect::<Vec<_>>();
+    /*let colors = per_face_colors
+    .iter()
+    .flat_map(|color| vec![*color; 4])
+    .collect::<Vec<_>>();*/
+
+    let mut vertex_colors: Vec<[f32; 4]> = vec![];
+
+    for face_color in [
+        colors.pos_z,
+        colors.neg_z,
+        colors.neg_x,
+        colors.pos_x,
+        colors.pos_y,
+        colors.neg_y,
+    ] {
+        let color = face_color.unwrap_or(Color::srgb(0.0, 0.0, 0.0)).to_srgba();
+        let color_array = [color.red, color.green, color.blue, color.alpha];
+        for _ in 0..4 {
+            vertex_colors.push(color_array);
+        }
+    }
 
     let normals = vec![[0.0, 0.0, 1.0]; 4]
         .into_iter()
@@ -592,38 +618,88 @@ fn colored_cube_mesh(per_face_colors: [[f32; 4]; 6]) -> Mesh {
         .chain(vec![[0.0, -1.0, 0.0]; 4])
         .collect::<Vec<_>>();
 
-    let uvs = vec![
+    const BORDERED_UVS: [[f32; 2]; 24] = [
         // Front
         [0.0, 1.0],
-        [1.0, 1.0],
-        [1.0, 0.0],
+        [0.5, 1.0],
+        [0.5, 0.0],
         [0.0, 0.0],
         // Back
-        [1.0, 1.0],
-        [1.0, 0.0],
+        [0.5, 1.0],
+        [0.5, 0.0],
         [0.0, 0.0],
         [0.0, 1.0],
         // Left
-        [1.0, 1.0],
-        [1.0, 0.0],
+        [0.5, 1.0],
+        [0.5, 0.0],
         [0.0, 0.0],
         [0.0, 1.0],
         // Right
         [0.0, 1.0],
-        [1.0, 1.0],
-        [1.0, 0.0],
+        [0.5, 1.0],
+        [0.5, 0.0],
         [0.0, 0.0],
         // Top
         [0.0, 0.0],
-        [1.0, 0.0],
-        [1.0, 1.0],
+        [0.5, 0.0],
+        [0.5, 1.0],
         [0.0, 1.0],
         // Bottom
-        [1.0, 0.0],
+        [0.5, 0.0],
         [0.0, 0.0],
         [0.0, 1.0],
+        [0.5, 1.0],
+    ];
+
+    const FLAT_UVS: [[f32; 2]; 24] = [
+        // Front
+        [0.5, 1.0],
+        [1.0, 1.0],
+        [1.0, 0.0],
+        [0.5, 0.0],
+        // Back
+        [1.0, 1.0],
+        [1.0, 0.0],
+        [0.5, 0.0],
+        [0.5, 1.0],
+        // Left
+        [1.0, 1.0],
+        [1.0, 0.0],
+        [0.5, 0.0],
+        [0.5, 1.0],
+        // Right
+        [0.5, 1.0],
+        [1.0, 1.0],
+        [1.0, 0.0],
+        [0.5, 0.0],
+        // Top
+        [0.5, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.5, 1.0],
+        // Bottom
+        [1.0, 0.0],
+        [0.5, 0.0],
+        [0.5, 1.0],
         [1.0, 1.0],
     ];
+
+    let mut uvs: Vec<[f32; 2]> = vec![];
+
+    for face_color in [
+        colors.pos_z,
+        colors.neg_z,
+        colors.neg_x,
+        colors.pos_x,
+        colors.pos_y,
+        colors.neg_y,
+    ] {
+        if face_color.is_some() {
+            uvs.extend_from_slice(&BORDERED_UVS[uvs.len()..uvs.len() + 4]);
+        } else {
+            uvs.extend_from_slice(&FLAT_UVS[uvs.len()..uvs.len() + 4]);
+        }
+    }
 
     let indices = (0..6)
         .flat_map(|i| {
@@ -633,7 +709,7 @@ fn colored_cube_mesh(per_face_colors: [[f32; 4]; 6]) -> Mesh {
         .collect::<Vec<_>>();
 
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vertex_colors);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_indices(Indices::U32(indices));
@@ -705,38 +781,72 @@ fn game_setup(
                             Cubie {
                                 position: (x, y, z),
                             },
-                            Mesh3d(meshes.add(colored_cube_mesh([
-                                if z == 2 {
-                                    [1.0, 0.0, 0.0, 1.0] // Red
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
+                            Mesh3d(meshes.add(colored_cube_mesh(
+                                /*[
+                                    if z == 2 {
+                                        [1.0, 0.0, 0.0, 1.0] // Red
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                    if z == 0 {
+                                        [1.0, 0.2, 0.0, 1.0] // Orange
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                    if x == 0 {
+                                        [1.0, 1.0, 0.0, 1.0] // Yellow
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                    if x == 2 {
+                                        [1.0, 1.0, 1.0, 1.0] // White
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                    if y == 2 {
+                                        [0.0, 1.0, 0.0, 1.0] // Green
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                    if y == 0 {
+                                        [0.0, 0.0, 1.0, 1.0] // Blue
+                                    } else {
+                                        [0.0, 0.0, 0.0, 1.0]
+                                    },
+                                ]*/
+                                CubeFaceColors {
+                                    pos_x: if x == 2 {
+                                        Some(Color::srgb(1.0, 1.0, 1.0)) // White
+                                    } else {
+                                        None
+                                    },
+                                    neg_x: if x == 0 {
+                                        Some(Color::srgb(1.0, 1.0, 0.0)) // Yellow
+                                    } else {
+                                        None
+                                    },
+                                    pos_y: if y == 2 {
+                                        Some(Color::srgb(0.0, 1.0, 0.0)) // Green
+                                    } else {
+                                        None
+                                    },
+                                    neg_y: if y == 0 {
+                                        Some(Color::srgb(0.0, 0.0, 1.0)) // Blue
+                                    } else {
+                                        None
+                                    },
+                                    pos_z: if z == 2 {
+                                        Some(Color::srgb(1.0, 0.0, 0.0)) // Red
+                                    } else {
+                                        None
+                                    },
+                                    neg_z: if z == 0 {
+                                        Some(Color::srgb(1.0, 0.2, 0.0)) // Orange
+                                    } else {
+                                        None
+                                    },
                                 },
-                                if z == 0 {
-                                    [1.0, 0.2, 0.0, 1.0] // Orange
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
-                                },
-                                if x == 0 {
-                                    [1.0, 1.0, 0.0, 1.0] // Yellow
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
-                                },
-                                if x == 2 {
-                                    [1.0, 1.0, 1.0, 1.0] // White
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
-                                },
-                                if y == 2 {
-                                    [0.0, 1.0, 0.0, 1.0] // Green
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
-                                },
-                                if y == 0 {
-                                    [0.0, 0.0, 1.0, 1.0] // Blue
-                                } else {
-                                    [0.0, 0.0, 0.0, 1.0]
-                                },
-                            ]))),
+                            ))),
                             MeshMaterial3d(cubie_material.clone()),
                             Transform {
                                 translation: (Vec3::new(x as f32, y as f32, z as f32) - 1.0) / 3.0,
