@@ -1,7 +1,6 @@
 mod game;
 mod main_menu;
 
-use avian3d::prelude::*;
 use bevy::prelude::*;
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -18,7 +17,7 @@ pub struct GameAppPlugin;
 
 impl Plugin for GameAppPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((DefaultPlugins, PhysicsPlugins::default()))
+        app.add_plugins(DefaultPlugins)
             .init_state::<GameState>()
             .add_systems(OnEnter(GameState::Menu), setup)
             .add_plugins((main_menu::plugin, game::plugin));
